@@ -1,9 +1,42 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import FilterBar from './FilterBar'
 import Chart from './Chart'
 import { LOCATIONS, METRICS } from './locations'
 import { fetchWeatherData, computeSummary, toCSV } from './api'
 import type { WeatherMetric, LocationResult } from './types'
+
+function parseUrlParams(): {
+  metrics?: WeatherMetric[]
+  locations?: string[]
+  start?: string
+  end?: string
+} {
+  const params = new URLSearchParams(window.location.search)
+  const validMetrics = new Set(METRICS.map(m => m.id))
+  const validLocations = new Set(LOCATIONS.map(l => l.id))
+
+  const metrics = params.get('metrics')?.split(',').filter(m => validMetrics.has(m as WeatherMetric)) as WeatherMetric[] | undefined
+  const locations = params.get('locations')?.split(',').filter(l => validLocations.has(l))
+  const start = params.get('start') ?? undefined
+  const end = params.get('end') ?? undefined
+
+  return {
+    metrics: metrics?.length ? metrics : undefined,
+    locations: locations?.length ? locations : undefined,
+    start,
+    end,
+  }
+}
+
+function buildShareUrl(metrics: WeatherMetric[], locations: string[], start: string, end: string): string {
+  const params = new URLSearchParams({
+    metrics: metrics.join(','),
+    locations: locations.join(','),
+    start,
+    end,
+  })
+  return `${window.location.origin}${window.location.pathname}?${params}`
+}
 
 function HomeBtn() {
   return (
@@ -17,14 +50,22 @@ function HomeBtn() {
 }
 
 export default function App() {
-  const [selectedMetrics, setSelectedMetrics] = useState<WeatherMetric[]>(['precipitation_sum'])
-  const [selectedLocations, setSelectedLocations] = useState<string[]>(['lynnwood'])
-  const [startDate, setStartDate] = useState('2025-09-01')
-  const [endDate, setEndDate] = useState('2026-03-15')
+  const urlParams = parseUrlParams()
+  const [selectedMetrics, setSelectedMetrics] = useState<WeatherMetric[]>(urlParams.metrics ?? ['precipitation_sum'])
+  const [selectedLocations, setSelectedLocations] = useState<string[]>(urlParams.locations ?? ['lynnwood'])
+  const [startDate, setStartDate] = useState(urlParams.start ?? '2025-09-01')
+  const [endDate, setEndDate] = useState(urlParams.end ?? '2026-03-15')
   const [results, setResults] = useState<LocationResult[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeChartMetric, setActiveChartMetric] = useState<WeatherMetric>('precipitation_sum')
+  const [copied, setCopied] = useState(false)
+
+  // Sync selections to URL
+  useEffect(() => {
+    const url = buildShareUrl(selectedMetrics, selectedLocations, startDate, endDate)
+    window.history.replaceState(null, '', url)
+  }, [selectedMetrics, selectedLocations, startDate, endDate])
 
   const toggleMetric = useCallback((id: WeatherMetric) => {
     setSelectedMetrics(prev =>
@@ -163,10 +204,22 @@ export default function App() {
               <Chart results={results} metric={activeChartMetric} />
             </div>
 
-            {/* Export */}
-            <div style={{ textAlign: 'center', marginTop: 24 }}>
+            {/* Export & Share */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 24 }}>
               <button className="btn-export" onClick={exportCSV}>
                 Export CSV
+              </button>
+              <button
+                className="btn-export"
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    buildShareUrl(selectedMetrics, selectedLocations, startDate, endDate)
+                  )
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 2000)
+                }}
+              >
+                {copied ? 'Copied!' : 'Copy Link'}
               </button>
             </div>
           </div>
