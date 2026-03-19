@@ -1,0 +1,251 @@
+@import "tailwindcss";
+
+@theme {
+  --color-sky-bubble: #4db8ff;
+  --color-sky-deep: #2196f3;
+  --color-sun-warm: #ffd54f;
+  --color-cloud-white: #f5f9ff;
+  --shadow-bubble: 0 4px 20px rgba(100, 170, 240, 0.18);
+  --shadow-bubble-lg: 0 8px 32px rgba(100, 170, 240, 0.22);
+}
+
+:root {
+  --bg-start: #c8e6f8;
+  --bg-end: #eef6ff;
+  --panel: rgba(255, 255, 255, 0.6);
+  --panel-solid: rgba(255, 255, 255, 0.85);
+  --text: #2c3e50;
+  --text-muted: #6b8fa8;
+  --accent: #4db8ff;
+  --accent-hover: #2ea4f2;
+  --border: rgba(255, 255, 255, 0.7);
+  --radius: 20px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #root { min-height: 100vh; }
+
+body {
+  font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+  background: linear-gradient(150deg, var(--bg-start) 0%, var(--bg-end) 50%, #fef9ef 100%);
+  background-attachment: fixed;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+/* === Home Button === */
+.home-btn {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.home-btn:hover {
+  color: var(--text);
+  background: var(--panel-solid);
+  transform: scale(1.04);
+}
+
+/* === Panels === */
+.panel {
+  background: var(--panel);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-bubble);
+  padding: 24px;
+}
+
+/* === Pill Toggles === */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 2px solid rgba(180, 210, 240, 0.4);
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  user-select: none;
+}
+.pill:hover {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: var(--accent);
+  transform: scale(1.05);
+}
+.pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  box-shadow: 0 2px 12px rgba(77, 184, 255, 0.35);
+  transform: scale(1.05);
+}
+.pill.pluto {
+  border-color: rgba(180, 140, 220, 0.4);
+}
+.pill.pluto.active {
+  background: linear-gradient(135deg, #9c7cb8, #7b68a8);
+  border-color: #9c7cb8;
+  box-shadow: 0 2px 12px rgba(156, 124, 184, 0.35);
+}
+
+/* === Generate Button === */
+.btn-generate {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 32px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #4db8ff, #2196f3);
+  color: white;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 4px 16px rgba(33, 150, 243, 0.3);
+}
+.btn-generate:hover {
+  transform: scale(1.06);
+  box-shadow: 0 6px 24px rgba(33, 150, 243, 0.4);
+}
+.btn-generate:active {
+  transform: scale(0.97);
+}
+.btn-generate:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* === Summary Cards === */
+.summary-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px 20px;
+  text-align: center;
+  transition: transform 0.2s;
+}
+.summary-card:hover {
+  transform: translateY(-2px);
+}
+.summary-card .emoji {
+  font-size: 24px;
+}
+.summary-card .location-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 4px;
+}
+.summary-card .stat {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--accent);
+  margin-top: 2px;
+}
+.summary-card .label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.summary-card.pluto {
+  background: linear-gradient(135deg, rgba(180, 150, 220, 0.2), rgba(140, 120, 200, 0.15));
+  border-color: rgba(160, 140, 200, 0.3);
+}
+.summary-card.pluto .stat {
+  color: #8b6fb0;
+}
+
+/* === Export Button === */
+.btn-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 2px solid rgba(180, 210, 240, 0.5);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-export:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: var(--accent);
+  transform: scale(1.04);
+}
+
+/* === Date Inputs === */
+.date-input {
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 2px solid rgba(180, 210, 240, 0.4);
+  background: rgba(255, 255, 255, 0.6);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  outline: none;
+  transition: all 0.2s;
+}
+.date-input:focus {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 3px rgba(77, 184, 255, 0.15);
+}
+
+/* === Loading Spinner === */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* === Chart Container === */
+.chart-container {
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+/* === Pluto Toast === */
+.pluto-toast {
+  background: linear-gradient(135deg, #2d1b4e, #1a1040);
+  color: #d4bfef;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 13px;
+  text-align: center;
+  margin-top: 8px;
+}
