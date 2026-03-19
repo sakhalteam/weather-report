@@ -12,6 +12,7 @@ interface FilterBarProps {
   onStartDate: (date: string) => void
   onEndDate: (date: string) => void
   onGenerate: () => void
+  onReset: () => void
 }
 
 export default function FilterBar({
@@ -25,8 +26,12 @@ export default function FilterBar({
   onStartDate,
   onEndDate,
   onGenerate,
+  onReset,
 }: FilterBarProps) {
   const canGenerate = selectedMetrics.length > 0 && selectedLocations.length > 0 && startDate && endDate
+  const isDefault = selectedMetrics.length === 1 && selectedMetrics[0] === 'precipitation_sum'
+    && selectedLocations.length === 1 && selectedLocations[0] === 'lynnwood'
+    && startDate === '2025-09-01' && endDate === '2026-03-15'
 
   return (
     <div className="panel" style={{ maxWidth: 640, margin: '0 auto' }}>
@@ -76,7 +81,7 @@ export default function FilterBar({
         </div>
       </Section>
 
-      <div style={{ textAlign: 'center', marginTop: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 24 }}>
         <button
           className="btn-generate"
           disabled={!canGenerate || loading}
@@ -88,6 +93,11 @@ export default function FilterBar({
             'Generate Report'
           )}
         </button>
+        {!isDefault && (
+          <button className="btn-reset" onClick={onReset}>
+            Reset
+          </button>
+        )}
       </div>
     </div>
   )

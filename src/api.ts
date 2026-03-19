@@ -22,8 +22,11 @@ export async function fetchWeatherData(
   })
 
   const res = await fetch(`${BASE_URL}?${params}`)
-  if (!res.ok) throw new Error(`Failed to fetch data for ${location.name}`)
   const data = await res.json()
+  if (!res.ok) {
+    const reason = data?.reason ?? `HTTP ${res.status}`
+    throw new Error(`${location.name}: ${reason}`)
+  }
   return { daily: data.daily }
 }
 

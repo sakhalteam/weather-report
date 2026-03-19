@@ -101,6 +101,15 @@ export default function App() {
     }
   }, [selectedMetrics, selectedLocations, startDate, endDate])
 
+  const reset = useCallback(() => {
+    setSelectedMetrics(['precipitation_sum'])
+    setSelectedLocations(['lynnwood'])
+    setStartDate('2025-09-01')
+    setEndDate('2026-03-15')
+    setResults([])
+    setError(null)
+  }, [])
+
   const exportCSV = useCallback(() => {
     const csv = toCSV(results, selectedMetrics)
     const blob = new Blob([csv], { type: 'text/csv' })
@@ -139,6 +148,7 @@ export default function App() {
           onStartDate={setStartDate}
           onEndDate={setEndDate}
           onGenerate={generate}
+          onReset={reset}
         />
 
         {error && (
