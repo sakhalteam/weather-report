@@ -37,3 +37,5 @@ export interface MonthBucket {
   month: string
   [key: string]: number | string
 }
+
+export type ChartType = 'bar' | 'line'

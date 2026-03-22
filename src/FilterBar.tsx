@@ -1,14 +1,17 @@
-import { LOCATIONS, METRICS } from './locations'
-import type { WeatherMetric } from './types'
+import { useState, useRef, useEffect } from 'react'
+import { METRICS, searchLocations } from './locations'
+import type { Location, WeatherMetric } from './types'
 
 interface FilterBarProps {
   selectedMetrics: WeatherMetric[]
   selectedLocations: string[]
+  allLocations: Location[]
   startDate: string
   endDate: string
   loading: boolean
   onToggleMetric: (id: WeatherMetric) => void
   onToggleLocation: (id: string) => void
+  onAddLocation: (loc: Location) => void
   onStartDate: (date: string) => void
   onEndDate: (date: string) => void
   onGenerate: () => void
@@ -18,20 +21,57 @@ interface FilterBarProps {
 export default function FilterBar({
   selectedMetrics,
   selectedLocations,
+  allLocations,
   startDate,
   endDate,
   loading,
   onToggleMetric,
   onToggleLocation,
+  onAddLocation,
   onStartDate,
   onEndDate,
   onGenerate,
   onReset,
 }: FilterBarProps) {
   const canGenerate = selectedMetrics.length > 0 && selectedLocations.length > 0 && startDate && endDate
+  const today = new Date().toISOString().split('T')[0]
   const isDefault = selectedMetrics.length === 1 && selectedMetrics[0] === 'precipitation_sum'
     && selectedLocations.length === 1 && selectedLocations[0] === 'lynnwood'
-    && startDate === '2025-09-01' && endDate === '2026-03-15'
+    && startDate === today && endDate === today
+
+  // Location search
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<Location[]>([])
+  const [searching, setSearching] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
+  const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const searchRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!searchQuery.trim() || searchQuery.length < 2) {
+      setSearchResults([])
+      return
+    }
+    setSearching(true)
+    clearTimeout(searchTimeout.current)
+    searchTimeout.current = setTimeout(async () => {
+      const results = await searchLocations(searchQuery)
+      setSearchResults(results)
+      setSearching(false)
+    }, 400)
+    return () => clearTimeout(searchTimeout.current)
+  }, [searchQuery])
+
+  // Close search dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSearch(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
   return (
     <div className="panel" style={{ maxWidth: 640, margin: '0 auto' }}>
@@ -51,7 +91,7 @@ export default function FilterBar({
 
       <Section label="Where?">
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {LOCATIONS.map(loc => (
+          {allLocations.map(loc => (
             <button
               key={loc.id}
               className={`pill ${selectedLocations.includes(loc.id) ? 'active' : ''} ${loc.isEasterEgg ? 'pluto' : ''}`}
@@ -60,6 +100,45 @@ export default function FilterBar({
               <span>{loc.emoji}</span> {loc.name}
             </button>
           ))}
+          <div ref={searchRef} style={{ position: 'relative' }}>
+            <button
+              className={`pill ${showSearch ? 'active' : ''}`}
+              onClick={() => setShowSearch(!showSearch)}
+              style={{ borderStyle: 'dashed' }}
+            >
+              + Add City
+            </button>
+            {showSearch && (
+              <div className="search-dropdown">
+                <input
+                  type="text"
+                  className="search-input"
+                  placeholder="Search city..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  autoFocus
+                />
+                {searching && <div className="search-status">Searching...</div>}
+                {!searching && searchResults.length === 0 && searchQuery.length >= 2 && (
+                  <div className="search-status">No results</div>
+                )}
+                {searchResults.map(loc => (
+                  <button
+                    key={loc.id}
+                    className="search-result"
+                    onClick={() => {
+                      onAddLocation(loc)
+                      setSearchQuery('')
+                      setSearchResults([])
+                      setShowSearch(false)
+                    }}
+                  >
+                    {loc.emoji} {loc.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </Section>
 

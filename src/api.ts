@@ -12,11 +12,18 @@ export async function fetchWeatherData(
     return generatePlutoData(metrics, startDate, endDate)
   }
 
+  // Clamp end date to 5 days ago to avoid archive API gaps
+  const fiveDaysAgo = new Date()
+  fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5)
+  const clampedEnd = endDate > fiveDaysAgo.toISOString().split('T')[0]
+    ? fiveDaysAgo.toISOString().split('T')[0]
+    : endDate
+
   const params = new URLSearchParams({
     latitude: String(location.latitude),
     longitude: String(location.longitude),
     start_date: startDate,
-    end_date: endDate,
+    end_date: clampedEnd,
     daily: metrics.join(','),
     timezone: 'auto',
   })
@@ -91,6 +98,32 @@ export function aggregateMonthly(
     }
     return { month, value }
   })
+}
+
+// Aggregate daily values for line chart
+export function aggregateDaily(
+  daily: DailyData,
+  metric: WeatherMetric,
+): { date: string; value: number }[] {
+  const times = daily.time as string[]
+  const values = (daily[metric] as number[]) ?? []
+  // For daily line chart, sample weekly to avoid overwhelming the chart
+  const result: { date: string; value: number }[] = []
+  for (let i = 0; i < times.length; i += 7) {
+    const weekSlice = values.slice(i, i + 7)
+    const isCountMetric = metric === 'precipitation_sum' || metric === 'snowfall_sum'
+    const isSumMetric = metric === 'sunshine_duration'
+    let value: number
+    if (isCountMetric) {
+      value = weekSlice.filter(v => v > 0).length
+    } else if (isSumMetric) {
+      value = Math.round(weekSlice.reduce((a, b) => a + b, 0) / 3600)
+    } else {
+      value = +(weekSlice.reduce((a, b) => a + b, 0) / weekSlice.length).toFixed(1)
+    }
+    result.push({ date: times[i], value })
+  }
+  return result
 }
 
 export function computeSummary(
