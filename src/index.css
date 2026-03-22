@@ -199,20 +199,32 @@ body {
   font-size: 24px;
 }
 .summary-card .location-name {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text);
   margin-top: 4px;
+  margin-bottom: 8px;
 }
-.summary-card .stat {
-  font-size: 22px;
+.summary-card .stat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.summary-card .stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.summary-card .stat-value {
+  font-size: 18px;
   font-weight: 800;
   color: var(--accent);
-  margin-top: 2px;
 }
-.summary-card .label {
-  font-size: 12px;
+.summary-card .stat-label {
+  font-size: 11px;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 .summary-card.pluto {
   background: linear-gradient(135deg, rgba(180, 150, 220, 0.2), rgba(140, 120, 200, 0.15));

@@ -270,34 +270,38 @@ export default function App() {
               <span className="report-dates">{startDate} to {endDate}</span>
             </div>
 
-            {/* Summary Cards */}
+            {/* Summary Cards — one card per location, all metrics inside */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: `repeat(auto-fill, minmax(160px, 1fr))`,
-              gap: 12,
+              gridTemplateColumns: `repeat(auto-fill, minmax(200px, 1fr))`,
+              gap: 14,
               marginBottom: 24,
             }}>
               {results.map(r => (
-                selectedMetrics.map(metric => {
-                  const info = METRICS.find(m => m.id === metric)!
-                  const summaryText = computeSummary(r.daily, metric)
-                  return (
-                    <div
-                      key={`${r.location.id}-${metric}`}
-                      className={`summary-card ${r.location.isEasterEgg ? 'pluto' : ''}`}
-                    >
-                      <div className="emoji">{r.location.emoji}</div>
-                      <div className="location-name">{r.location.name}</div>
-                      <div className="stat">
-                        <AnimatedNumber value={summaryText} />
-                      </div>
-                      <div className="label">{info.emoji} {info.summaryLabel}</div>
-                      {r.location.isEasterEgg && (
-                        <div className="pluto-quip">{getPlutoQuip(metric)}</div>
-                      )}
-                    </div>
-                  )
-                })
+                <div
+                  key={r.location.id}
+                  className={`summary-card ${r.location.isEasterEgg ? 'pluto' : ''}`}
+                >
+                  <div className="emoji">{r.location.emoji}</div>
+                  <div className="location-name">{r.location.name}</div>
+                  <div className="stat-list">
+                    {selectedMetrics.map(metric => {
+                      const info = METRICS.find(m => m.id === metric)!
+                      const summaryText = computeSummary(r.daily, metric)
+                      return (
+                        <div key={metric} className="stat-row">
+                          <span className="stat-value">
+                            <AnimatedNumber value={summaryText} />
+                          </span>
+                          <span className="stat-label">{info.emoji} {info.summaryLabel}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {r.location.isEasterEgg && (
+                    <div className="pluto-quip">{getPlutoQuip(selectedMetrics[0])}</div>
+                  )}
+                </div>
               ))}
             </div>
 
