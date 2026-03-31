@@ -12,8 +12,16 @@ export type WeatherMetric =
   | 'sunshine_duration'
   | 'temperature_2m_max'
   | 'temperature_2m_min'
+  | 'apparent_temperature_max'
+  | 'apparent_temperature_min'
   | 'snowfall_sum'
   | 'wind_speed_10m_max'
+  | 'wind_gusts_10m_max'
+  | 'daylight_duration'
+  | 'uv_index_max'
+  | 'precipitation_hours'
+
+export type MetricCategory = 'temperature' | 'precipitation' | 'sun' | 'wind'
 
 export interface MetricInfo {
   id: WeatherMetric
@@ -21,6 +29,7 @@ export interface MetricInfo {
   emoji: string
   unit: string
   summaryLabel: string
+  category: MetricCategory
 }
 
 export interface DailyData {
@@ -39,3 +48,5 @@ export interface MonthBucket {
 }
 
 export type ChartType = 'bar' | 'line'
+export type TemperatureUnit = 'C' | 'F'
+export type AppMode = 'compare' | 'yoy' | 'showdown' | 'twin'

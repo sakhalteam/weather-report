@@ -1,39 +1,49 @@
 import { useState, useRef, useEffect } from 'react'
-import { METRICS, searchLocations } from './locations'
-import type { Location, WeatherMetric } from './types'
+import { METRICS, METRIC_CATEGORIES, searchLocations } from './locations'
+import { DATE_PRESETS } from './api'
+import type { Location, WeatherMetric, AppMode } from './types'
 
 interface FilterBarProps {
+  mode: AppMode
   selectedMetrics: WeatherMetric[]
   selectedLocations: string[]
   allLocations: Location[]
   startDate: string
   endDate: string
+  yoyYears: number[]
   loading: boolean
   onToggleMetric: (id: WeatherMetric) => void
   onToggleLocation: (id: string) => void
   onAddLocation: (loc: Location) => void
   onStartDate: (date: string) => void
   onEndDate: (date: string) => void
+  onToggleYear: (year: number) => void
   onGenerate: () => void
   onReset: () => void
 }
 
+const currentYear = new Date().getFullYear()
+const AVAILABLE_YEARS = Array.from({ length: 11 }, (_, i) => currentYear - i)
+
 export default function FilterBar({
+  mode,
   selectedMetrics,
   selectedLocations,
   allLocations,
   startDate,
   endDate,
+  yoyYears,
   loading,
   onToggleMetric,
   onToggleLocation,
   onAddLocation,
   onStartDate,
   onEndDate,
+  onToggleYear,
   onGenerate,
   onReset,
 }: FilterBarProps) {
-  const canGenerate = selectedMetrics.length > 0 && selectedLocations.length > 0 && startDate && endDate
+  const canGenerate = getCanGenerate(mode, selectedMetrics, selectedLocations, startDate, endDate, yoyYears)
   const today = new Date().toISOString().split('T')[0]
   const isDefault = selectedMetrics.length === 1 && selectedMetrics[0] === 'precipitation_sum'
     && selectedLocations.length === 1 && selectedLocations[0] === 'lynnwood'
@@ -62,7 +72,6 @@ export default function FilterBar({
     return () => clearTimeout(searchTimeout.current)
   }, [searchQuery])
 
-  // Close search dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
@@ -73,76 +82,127 @@ export default function FilterBar({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
+  const locationHint = mode === 'showdown'
+    ? 'Pick exactly 2 locations'
+    : mode === 'twin' || mode === 'yoy'
+      ? 'Pick your home location'
+      : undefined
+
+  const maxLocations = mode === 'showdown' ? 2 : mode === 'twin' || mode === 'yoy' ? 1 : Infinity
+  const atLocationLimit = selectedLocations.length >= maxLocations
+
   return (
     <div className="panel" style={{ maxWidth: 640, margin: '0 auto' }}>
+      {/* Metrics — grouped by category */}
       <Section label="What weather?">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {METRICS.map(m => (
-            <button
-              key={m.id}
-              className={`pill ${selectedMetrics.includes(m.id) ? 'active' : ''}`}
-              onClick={() => onToggleMetric(m.id)}
-            >
-              <span>{m.emoji}</span> {m.label}
-            </button>
-          ))}
-        </div>
-      </Section>
-
-      <Section label="Where?">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {allLocations.map(loc => (
-            <button
-              key={loc.id}
-              className={`pill ${selectedLocations.includes(loc.id) ? 'active' : ''} ${loc.isEasterEgg ? 'pluto' : ''}`}
-              onClick={() => onToggleLocation(loc.id)}
-            >
-              <span>{loc.emoji}</span> {loc.name}
-            </button>
-          ))}
-          <div ref={searchRef} style={{ position: 'relative' }}>
-            <button
-              className={`pill ${showSearch ? 'active' : ''}`}
-              onClick={() => setShowSearch(!showSearch)}
-              style={{ borderStyle: 'dashed' }}
-            >
-              + Add City
-            </button>
-            {showSearch && (
-              <div className="search-dropdown">
-                <input
-                  type="text"
-                  className="search-input"
-                  placeholder="Search city..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  autoFocus
-                />
-                {searching && <div className="search-status">Searching...</div>}
-                {!searching && searchResults.length === 0 && searchQuery.length >= 2 && (
-                  <div className="search-status">No results</div>
-                )}
-                {searchResults.map(loc => (
-                  <button
-                    key={loc.id}
-                    className="search-result"
-                    onClick={() => {
-                      onAddLocation(loc)
-                      setSearchQuery('')
-                      setSearchResults([])
-                      setShowSearch(false)
-                    }}
-                  >
-                    {loc.emoji} {loc.name}
-                  </button>
-                ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {METRIC_CATEGORIES.map(cat => {
+            const catMetrics = METRICS.filter(m => m.category === cat.id)
+            return (
+              <div key={cat.id}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.7 }}>
+                  {cat.emoji} {cat.label}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {catMetrics.map(m => (
+                    <button
+                      key={m.id}
+                      className={`pill ${selectedMetrics.includes(m.id) ? 'active' : ''}`}
+                      onClick={() => onToggleMetric(m.id)}
+                    >
+                      <span>{m.emoji}</span> {m.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            )}
-          </div>
+            )
+          })}
         </div>
       </Section>
 
-      <Section label="When?">
+      {/* Locations */}
+      <Section label={`Where?${locationHint ? ` \u2014 ${locationHint}` : ''}`}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {allLocations.map(loc => {
+            const isSelected = selectedLocations.includes(loc.id)
+            const disabled = !isSelected && atLocationLimit
+            return (
+              <button
+                key={loc.id}
+                className={`pill ${isSelected ? 'active' : ''} ${loc.isEasterEgg ? 'pluto' : ''}`}
+                onClick={() => !disabled && onToggleLocation(loc.id)}
+                style={disabled ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+              >
+                <span>{loc.emoji}</span> {loc.name}
+              </button>
+            )
+          })}
+          {!atLocationLimit && (
+            <div ref={searchRef} style={{ position: 'relative' }}>
+              <button
+                className={`pill ${showSearch ? 'active' : ''}`}
+                onClick={() => setShowSearch(!showSearch)}
+                style={{ borderStyle: 'dashed' }}
+              >
+                + Add City
+              </button>
+              {showSearch && (
+                <div className="search-dropdown">
+                  <input
+                    type="text"
+                    className="search-input"
+                    placeholder="Search city..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    autoFocus
+                  />
+                  {searching && <div className="search-status">Searching...</div>}
+                  {!searching && searchResults.length === 0 && searchQuery.length >= 2 && (
+                    <div className="search-status">No results</div>
+                  )}
+                  {searchResults.map(loc => (
+                    <button
+                      key={loc.id}
+                      className="search-result"
+                      onClick={() => {
+                        onAddLocation(loc)
+                        setSearchQuery('')
+                        setSearchResults([])
+                        setShowSearch(false)
+                      }}
+                    >
+                      {loc.emoji} {loc.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Section>
+
+      {/* Date Range */}
+      <Section label={mode === 'yoy' ? 'Date range (month/day) & years' : 'When?'}>
+        {/* Presets */}
+        {mode !== 'yoy' && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+            {DATE_PRESETS.map(preset => (
+              <button
+                key={preset.label}
+                className="pill"
+                style={{ fontSize: 12, padding: '5px 12px' }}
+                onClick={() => {
+                  const { start, end } = preset.getRange()
+                  onStartDate(start)
+                  onEndDate(end)
+                }}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <input
             type="date"
@@ -158,6 +218,27 @@ export default function FilterBar({
             onChange={e => onEndDate(e.target.value)}
           />
         </div>
+
+        {/* Year-over-Year: year picker */}
+        {mode === 'yoy' && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Compare years
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {AVAILABLE_YEARS.map(year => (
+                <button
+                  key={year}
+                  className={`pill ${yoyYears.includes(year) ? 'active' : ''}`}
+                  style={{ fontSize: 13, padding: '5px 12px' }}
+                  onClick={() => onToggleYear(year)}
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </Section>
 
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 24 }}>
@@ -168,6 +249,10 @@ export default function FilterBar({
         >
           {loading ? (
             <><div className="spinner" /> Fetching...</>
+          ) : mode === 'twin' ? (
+            'Find My Twin'
+          ) : mode === 'showdown' ? (
+            'Start Showdown'
           ) : (
             'Generate Report'
           )}
@@ -180,6 +265,24 @@ export default function FilterBar({
       </div>
     </div>
   )
+}
+
+function getCanGenerate(
+  mode: AppMode,
+  metrics: WeatherMetric[],
+  locations: string[],
+  start: string,
+  end: string,
+  years: number[],
+): boolean {
+  if (metrics.length === 0 || !start || !end) return false
+  switch (mode) {
+    case 'compare': return locations.length > 0
+    case 'showdown': return locations.length === 2
+    case 'twin': return locations.length === 1
+    case 'yoy': return locations.length === 1 && years.length >= 2
+    default: return false
+  }
 }
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
