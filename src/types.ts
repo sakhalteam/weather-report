@@ -23,6 +23,33 @@ export type WeatherMetric =
 
 export type MetricCategory = 'temperature' | 'precipitation' | 'sun' | 'wind'
 
+// Air quality types
+export interface AirQualityHourly {
+  time: string[]
+  us_aqi?: number[]
+  pm2_5?: number[]
+  pm10?: number[]
+  ozone?: number[]
+  nitrogen_dioxide?: number[]
+  carbon_monoxide?: number[]
+  uv_index?: number[]
+}
+
+export interface AirQualityResult {
+  location: Location
+  hourly: AirQualityHourly
+}
+
+// Climate 2050 types
+export interface ClimateProjection {
+  location: Location
+  currentAvg: { tempMax: number; tempMin: number; precip: number }
+  projectedAvg: { tempMax: number; tempMin: number; precip: number }
+  deltaMax: number
+  deltaMin: number
+  deltaPrecip: number
+}
+
 export interface MetricInfo {
   id: WeatherMetric
   label: string
@@ -49,4 +76,4 @@ export interface MonthBucket {
 
 export type ChartType = 'bar' | 'line'
 export type TemperatureUnit = 'C' | 'F'
-export type AppMode = 'compare' | 'yoy' | 'showdown' | 'twin'
+export type AppMode = 'compare' | 'yoy' | 'showdown' | 'twin' | 'airquality' | 'climate2050'

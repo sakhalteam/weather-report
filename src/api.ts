@@ -1,4 +1,4 @@
-import type { Location, WeatherMetric, DailyData, TemperatureUnit, LocationResult } from './types'
+import type { Location, WeatherMetric, DailyData, TemperatureUnit, LocationResult, AirQualityHourly, AirQualityResult, ClimateProjection } from './types'
 
 export function cToF(c: number): number {
   return +(c * 9 / 5 + 32).toFixed(1)
@@ -340,6 +340,221 @@ export const DATE_PRESETS: DatePreset[] = [
     },
   },
 ]
+
+// --- Elevation ---
+
+export async function fetchElevations(locations: Location[]): Promise<Map<string, number>> {
+  const real = locations.filter(l => !l.isEasterEgg)
+  if (real.length === 0) return new Map()
+
+  const lats = real.map(l => l.latitude).join(',')
+  const lngs = real.map(l => l.longitude).join(',')
+  try {
+    const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lngs}`)
+    const data = await res.json()
+    const elevations = data.elevation as number[]
+    const map = new Map<string, number>()
+    real.forEach((loc, i) => map.set(loc.id, Math.round(elevations[i])))
+    // Pluto: ~1,200m avg (Sputnik Planitia basin)
+    locations.filter(l => l.isEasterEgg).forEach(l => map.set(l.id, -2500))
+    return map
+  } catch {
+    return new Map()
+  }
+}
+
+// --- Air Quality ---
+
+const AQ_BASE_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality'
+
+export const AQ_METRICS = ['us_aqi', 'pm2_5', 'pm10', 'ozone', 'nitrogen_dioxide', 'carbon_monoxide'] as const
+export type AQMetric = typeof AQ_METRICS[number]
+
+export async function fetchAirQuality(
+  location: Location,
+  pastDays: number = 7,
+): Promise<AirQualityResult> {
+  if (location.isEasterEgg) {
+    return generatePlutoAQ(location, pastDays)
+  }
+
+  const params = new URLSearchParams({
+    latitude: String(location.latitude),
+    longitude: String(location.longitude),
+    hourly: AQ_METRICS.join(','),
+    past_days: String(pastDays),
+    forecast_days: '1',
+    timezone: 'auto',
+  })
+
+  const res = await fetch(`${AQ_BASE_URL}?${params}`)
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(`${location.name}: ${data?.reason ?? `HTTP ${res.status}`}`)
+  }
+  return { location, hourly: data.hourly }
+}
+
+function generatePlutoAQ(location: Location, pastDays: number): AirQualityResult {
+  const hours: string[] = []
+  const now = new Date()
+  for (let d = pastDays; d >= 0; d--) {
+    for (let h = 0; h < 24; h++) {
+      const dt = new Date(now)
+      dt.setDate(dt.getDate() - d)
+      dt.setHours(h, 0, 0, 0)
+      hours.push(dt.toISOString().slice(0, 16))
+    }
+  }
+  return {
+    location,
+    hourly: {
+      time: hours,
+      us_aqi: hours.map(() => Math.round(Math.random() * 3)),
+      pm2_5: hours.map(() => +(Math.random() * 0.01).toFixed(3)),
+      pm10: hours.map(() => +(Math.random() * 0.02).toFixed(3)),
+      ozone: hours.map(() => +(Math.random() * 0.5).toFixed(2)),
+      nitrogen_dioxide: hours.map(() => 0),
+      carbon_monoxide: hours.map(() => 0),
+    },
+  }
+}
+
+// AQI color scale (US EPA)
+export function getAQILevel(aqi: number): { label: string; color: string; bg: string } {
+  if (aqi <= 50) return { label: 'Good', color: '#1a7d1a', bg: '#d4edda' }
+  if (aqi <= 100) return { label: 'Moderate', color: '#856404', bg: '#fff3cd' }
+  if (aqi <= 150) return { label: 'Unhealthy (Sensitive)', color: '#e07020', bg: '#ffe0cc' }
+  if (aqi <= 200) return { label: 'Unhealthy', color: '#cc0000', bg: '#f8d7da' }
+  if (aqi <= 300) return { label: 'Very Unhealthy', color: '#8b008b', bg: '#e8d0e8' }
+  return { label: 'Hazardous', color: '#7e0023', bg: '#d4a0a0' }
+}
+
+export function computeAQSummary(hourly: AirQualityHourly): {
+  avgAQI: number
+  maxAQI: number
+  avgPM25: number
+  avgOzone: number
+} {
+  const aqiVals = (hourly.us_aqi ?? []).filter(v => v != null && !isNaN(v))
+  const pm25Vals = (hourly.pm2_5 ?? []).filter(v => v != null && !isNaN(v))
+  const ozoneVals = (hourly.ozone ?? []).filter(v => v != null && !isNaN(v))
+
+  const avg = (arr: number[]) => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : 0
+
+  return {
+    avgAQI: Math.round(avg(aqiVals)),
+    maxAQI: aqiVals.length ? Math.max(...aqiVals) : 0,
+    avgPM25: +avg(pm25Vals),
+    avgOzone: +avg(ozoneVals),
+  }
+}
+
+// Aggregate hourly AQ data to daily averages for charting
+export function aggregateAQDaily(hourly: AirQualityHourly, metric: AQMetric): { date: string; value: number }[] {
+  const times = hourly.time ?? []
+  const values = (hourly[metric] as number[] | undefined) ?? []
+  const buckets = new Map<string, number[]>()
+
+  for (let i = 0; i < times.length; i++) {
+    const day = times[i].slice(0, 10)
+    if (!buckets.has(day)) buckets.set(day, [])
+    const v = values[i]
+    if (v != null && !isNaN(v)) buckets.get(day)!.push(v)
+  }
+
+  return Array.from(buckets.entries()).map(([date, vals]) => ({
+    date,
+    value: vals.length ? +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : 0,
+  }))
+}
+
+// --- Climate 2050 ---
+
+const CLIMATE_URL = 'https://climate-api.open-meteo.com/v1/climate'
+const CLIMATE_MODEL = 'MRI_AGCM3_2_S' // Good general-purpose model
+
+export async function fetchClimateProjection(location: Location): Promise<ClimateProjection> {
+  if (location.isEasterEgg) {
+    return {
+      location,
+      currentAvg: { tempMax: -218, tempMin: -233, precip: 0 },
+      projectedAvg: { tempMax: -217.5, tempMin: -232.5, precip: 0 },
+      deltaMax: 0.5,
+      deltaMin: 0.5,
+      deltaPrecip: 0,
+    }
+  }
+
+  // Fetch "current" baseline: 2010-2020
+  // Fetch "future" projection: 2040-2050
+  const daily = 'temperature_2m_max,temperature_2m_min,precipitation_sum'
+
+  const [currentRes, futureRes] = await Promise.all([
+    fetch(`${CLIMATE_URL}?latitude=${location.latitude}&longitude=${location.longitude}&start_date=2010-01-01&end_date=2019-12-31&models=${CLIMATE_MODEL}&daily=${daily}`),
+    fetch(`${CLIMATE_URL}?latitude=${location.latitude}&longitude=${location.longitude}&start_date=2040-01-01&end_date=2049-12-31&models=${CLIMATE_MODEL}&daily=${daily}`),
+  ])
+
+  const [currentData, futureData] = await Promise.all([currentRes.json(), futureRes.json()])
+
+  if (!currentRes.ok || !futureRes.ok) {
+    throw new Error(`${location.name}: Climate API error`)
+  }
+
+  const getAvg = (data: Record<string, unknown>, field: string): number => {
+    const daily = data.daily as Record<string, number[]> | undefined
+    if (!daily) return 0
+    // Climate API nests under model name
+    const key = `${field}_${CLIMATE_MODEL}` in daily ? `${field}_${CLIMATE_MODEL}` : field
+    const vals = (daily[key] ?? []).filter((v: number) => v != null && !isNaN(v))
+    return vals.length ? +(vals.reduce((a: number, b: number) => a + b, 0) / vals.length).toFixed(1) : 0
+  }
+
+  const currentAvg = {
+    tempMax: getAvg(currentData, 'temperature_2m_max'),
+    tempMin: getAvg(currentData, 'temperature_2m_min'),
+    precip: getAvg(currentData, 'precipitation_sum'),
+  }
+  const projectedAvg = {
+    tempMax: getAvg(futureData, 'temperature_2m_max'),
+    tempMin: getAvg(futureData, 'temperature_2m_min'),
+    precip: getAvg(futureData, 'precipitation_sum'),
+  }
+
+  return {
+    location,
+    currentAvg,
+    projectedAvg,
+    deltaMax: +(projectedAvg.tempMax - currentAvg.tempMax).toFixed(1),
+    deltaMin: +(projectedAvg.tempMin - currentAvg.tempMin).toFixed(1),
+    deltaPrecip: +(projectedAvg.precip - currentAvg.precip).toFixed(2),
+  }
+}
+
+// Find which current city's weather matches this city's 2050 projection
+export function findClimateTwin(
+  projection: ClimateProjection,
+  allProjections: ClimateProjection[],
+): ClimateProjection | null {
+  if (allProjections.length === 0) return null
+
+  // Find the city whose CURRENT temps are closest to this city's PROJECTED temps
+  let best: ClimateProjection | null = null
+  let bestDist = Infinity
+
+  for (const other of allProjections) {
+    if (other.location.id === projection.location.id) continue
+    const dMax = projection.projectedAvg.tempMax - other.currentAvg.tempMax
+    const dMin = projection.projectedAvg.tempMin - other.currentAvg.tempMin
+    const dist = Math.sqrt(dMax * dMax + dMin * dMin)
+    if (dist < bestDist) {
+      bestDist = dist
+      best = other
+    }
+  }
+
+  return best
+}
 
 // --- CSV export ---
 

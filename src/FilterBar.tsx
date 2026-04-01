@@ -84,41 +84,58 @@ export default function FilterBar({
 
   const locationHint = mode === 'showdown'
     ? 'Pick exactly 2 locations'
-    : mode === 'twin' || mode === 'yoy'
+    : mode === 'twin' || mode === 'yoy' || mode === 'climate2050'
       ? 'Pick your home location'
       : undefined
 
-  const maxLocations = mode === 'showdown' ? 2 : mode === 'twin' || mode === 'yoy' ? 1 : Infinity
+  const maxLocations = mode === 'showdown' ? 2 : (mode === 'twin' || mode === 'yoy' || mode === 'climate2050') ? 1 : Infinity
+  const hideMetrics = mode === 'airquality' || mode === 'climate2050'
   const atLocationLimit = selectedLocations.length >= maxLocations
 
   return (
     <div className="panel" style={{ maxWidth: 640, margin: '0 auto' }}>
-      {/* Metrics — grouped by category */}
-      <Section label="What weather?">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {METRIC_CATEGORIES.map(cat => {
-            const catMetrics = METRICS.filter(m => m.category === cat.id)
-            return (
-              <div key={cat.id}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.7 }}>
-                  {cat.emoji} {cat.label}
+      {/* Metrics — grouped by category (hidden for AQ and Climate modes) */}
+      {!hideMetrics && (
+        <Section label="What weather?">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {METRIC_CATEGORIES.map(cat => {
+              const catMetrics = METRICS.filter(m => m.category === cat.id)
+              return (
+                <div key={cat.id}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.7 }}>
+                    {cat.emoji} {cat.label}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {catMetrics.map(m => (
+                      <button
+                        key={m.id}
+                        className={`pill ${selectedMetrics.includes(m.id) ? 'active' : ''}`}
+                        onClick={() => onToggleMetric(m.id)}
+                      >
+                        <span>{m.emoji}</span> {m.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {catMetrics.map(m => (
-                    <button
-                      key={m.id}
-                      className={`pill ${selectedMetrics.includes(m.id) ? 'active' : ''}`}
-                      onClick={() => onToggleMetric(m.id)}
-                    >
-                      <span>{m.emoji}</span> {m.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </Section>
+              )
+            })}
+          </div>
+        </Section>
+      )}
+      {mode === 'airquality' && (
+        <Section label="What's measured?">
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+            US AQI, PM2.5, PM10, Ozone, NO{'\u{2082}'} &mdash; last 7 days of hourly data
+          </div>
+        </Section>
+      )}
+      {mode === 'climate2050' && (
+        <Section label="What's compared?">
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+            Temperature &amp; precipitation: 2010-2019 baseline vs 2040-2050 projection (MRI-AGCM3 model)
+          </div>
+        </Section>
+      )}
 
       {/* Locations */}
       <Section label={`Where?${locationHint ? ` \u2014 ${locationHint}` : ''}`}>
@@ -181,7 +198,8 @@ export default function FilterBar({
         </div>
       </Section>
 
-      {/* Date Range */}
+      {/* Date Range — hidden for AQ (uses past_days) and Climate (fixed decades) */}
+      {mode !== 'airquality' && mode !== 'climate2050' && (
       <Section label={mode === 'yoy' ? 'Date range (month/day) & years' : 'When?'}>
         {/* Presets */}
         {mode !== 'yoy' && (
@@ -240,6 +258,7 @@ export default function FilterBar({
           </div>
         )}
       </Section>
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 24 }}>
         <button
@@ -253,6 +272,10 @@ export default function FilterBar({
             'Find My Twin'
           ) : mode === 'showdown' ? (
             'Start Showdown'
+          ) : mode === 'airquality' ? (
+            'Check Air Quality'
+          ) : mode === 'climate2050' ? (
+            'See My 2050'
           ) : (
             'Generate Report'
           )}
@@ -275,6 +298,8 @@ function getCanGenerate(
   end: string,
   years: number[],
 ): boolean {
+  if (mode === 'airquality') return locations.length > 0
+  if (mode === 'climate2050') return locations.length === 1
   if (metrics.length === 0 || !start || !end) return false
   switch (mode) {
     case 'compare': return locations.length > 0

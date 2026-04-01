@@ -6,10 +6,15 @@ import Showdown from './Showdown'
 import WeatherTwin from './WeatherTwin'
 import Timeline from './Timeline'
 import AnimatedNumber from './AnimatedNumber'
+import AirQuality from './AirQuality'
+import Climate2050 from './Climate2050'
 import { LOCATIONS, TWIN_POOL, METRICS, getPlutoQuip } from './locations'
-import { fetchWeatherData, computeSummary, computeTwinScores, toCSV } from './api'
+import {
+  fetchWeatherData, computeSummary, computeTwinScores, toCSV,
+  fetchElevations, fetchAirQuality, fetchClimateProjection, findClimateTwin,
+} from './api'
 import { playBloop, playWhoosh, playChime, playClick, isMuted, toggleMute } from './sounds'
-import type { WeatherMetric, LocationResult, Location, ChartType, TemperatureUnit, AppMode } from './types'
+import type { WeatherMetric, LocationResult, Location, ChartType, TemperatureUnit, AppMode, AirQualityResult, ClimateProjection } from './types'
 import type { TwinScore } from './api'
 
 const MODE_INFO: { id: AppMode; label: string; emoji: string; description: string }[] = [
@@ -17,6 +22,8 @@ const MODE_INFO: { id: AppMode; label: string; emoji: string; description: strin
   { id: 'yoy', label: 'Year over Year', emoji: '\u{1F4C5}', description: 'Same place, different years' },
   { id: 'showdown', label: 'Showdown', emoji: '\u{26A1}', description: 'Head-to-head battle' },
   { id: 'twin', label: 'Weather Twin', emoji: '\u{1F46F}', description: 'Find your weather doppelg\u{00E4}nger' },
+  { id: 'airquality', label: 'Air Quality', emoji: '\u{1F32C}\u{FE0F}', description: 'AQI, PM2.5, ozone \u{2014} last 7 days' },
+  { id: 'climate2050', label: '2050 Climate', emoji: '\u{1F52E}', description: 'What will your city feel like in 2050?' },
 ]
 
 function parseUrlParams(): {
@@ -40,7 +47,7 @@ function parseUrlParams(): {
     locations: locations?.length ? locations : undefined,
     start,
     end,
-    mode: mode && ['compare', 'yoy', 'showdown', 'twin'].includes(mode) ? mode : undefined,
+    mode: mode && ['compare', 'yoy', 'showdown', 'twin', 'airquality', 'climate2050'].includes(mode) ? mode : undefined,
   }
 }
 
@@ -114,6 +121,12 @@ export default function App() {
   const [exporting, setExporting] = useState(false)
   const [showTimeline, setShowTimeline] = useState(false)
 
+  // New mode state
+  const [aqResults, setAqResults] = useState<AirQualityResult[]>([])
+  const [climateProjections, setClimateProjections] = useState<ClimateProjection[]>([])
+  const [climateTwin, setClimateTwin] = useState<ClimateProjection | null>(null)
+  const [elevations, setElevations] = useState<Map<string, number>>(new Map())
+
   // YoY state
   const [yoyYears, setYoyYears] = useState<number[]>([new Date().getFullYear(), new Date().getFullYear() - 1])
 
@@ -140,6 +153,9 @@ export default function App() {
   useEffect(() => {
     setResults([])
     setTwinScores([])
+    setAqResults([])
+    setClimateProjections([])
+    setClimateTwin(null)
     setError(null)
     setShowTimeline(false)
   }, [mode])
@@ -181,6 +197,9 @@ export default function App() {
     setError(null)
     setResults([])
     setTwinScores([])
+    setAqResults([])
+    setClimateProjections([])
+    setClimateTwin(null)
     setShowTimeline(false)
 
     try {
@@ -237,7 +256,32 @@ export default function App() {
         const scores = computeTwinScores(homeResult, validResults, selectedMetrics)
         setTwinScores(scores)
         setActiveChartMetric(selectedMetrics[0])
+      } else if (mode === 'airquality') {
+        const locations = selectedLocations.map(id => allLocations.find(l => l.id === id)!).filter(Boolean)
+        const fetched = await Promise.all(
+          locations.map(loc => fetchAirQuality(loc))
+        )
+        setAqResults(fetched)
+      } else if (mode === 'climate2050') {
+        const loc = allLocations.find(l => l.id === selectedLocations[0])!
+        // Fetch primary location + all twin pool cities for "future twin" matching
+        const [primary, ...poolProjections] = await Promise.all([
+          fetchClimateProjection(loc),
+          ...TWIN_POOL.filter(l => l.id !== loc.id).map(l =>
+            fetchClimateProjection(l).catch(() => null)
+          ),
+        ])
+        const validPool = poolProjections.filter((p): p is ClimateProjection => p !== null)
+        setClimateProjections([primary])
+        setClimateTwin(findClimateTwin(primary, validPool))
       }
+
+      // Fetch elevations for any mode that has selected locations
+      if (mode !== 'climate2050') {
+        const locs = selectedLocations.map(id => allLocations.find(l => l.id === id)!).filter(Boolean)
+        fetchElevations(locs).then(setElevations)
+      }
+
       playChime()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
@@ -263,6 +307,10 @@ export default function App() {
     setEndDate(TODAY)
     setResults([])
     setTwinScores([])
+    setAqResults([])
+    setClimateProjections([])
+    setClimateTwin(null)
+    setElevations(new Map())
     setError(null)
     setShowTimeline(false)
     setYoyYears([new Date().getFullYear(), new Date().getFullYear() - 1])
@@ -303,8 +351,9 @@ export default function App() {
     }
   }, [startDate, endDate])
 
-  const hasPluto = results.some(r => r.location.isEasterEgg)
+  const hasPluto = results.some(r => r.location.isEasterEgg) || aqResults.some(r => r.location.isEasterEgg)
   const hasResults = results.length > 0
+  const hasAnyResults = hasResults || aqResults.length > 0 || climateProjections.length > 0
   const totalDays = (results[0]?.daily.time as string[])?.length ?? 0
   const canTimeline = hasResults && totalDays > 14 && (mode === 'compare' || mode === 'yoy')
 
@@ -392,13 +441,15 @@ export default function App() {
         )}
 
         {/* Empty state */}
-        {!hasResults && !loading && !error && twinScores.length === 0 && (
+        {!hasAnyResults && !loading && !error && twinScores.length === 0 && (
           <div className="empty-state">
             <div className="empty-icon">{'\u{1F326}\u{FE0F}'}</div>
             <div className="empty-text">
               {mode === 'twin' ? 'Pick your home city and hit Find My Twin!'
                 : mode === 'showdown' ? 'Pick two cities and start the showdown!'
                 : mode === 'yoy' ? 'Pick a city, date range, and years to compare!'
+                : mode === 'airquality' ? 'Pick locations to check their air quality!'
+                : mode === 'climate2050' ? 'Pick a city to see its 2050 climate projection!'
                 : 'Pick some weather, choose your locations, and hit Generate!'}
             </div>
             <div className="empty-hint">Pro tip: add Pluto for a reality check on your local weather complaints</div>
@@ -480,6 +531,11 @@ export default function App() {
                 >
                   <div className="emoji">{r.location.emoji}</div>
                   <div className="location-name">{r.location.name}</div>
+                  {elevations.has(r.location.id) && (
+                    <div className="elevation-badge">
+                      {'\u{26F0}\u{FE0F}'} {elevations.get(r.location.id)!.toLocaleString()}m
+                    </div>
+                  )}
                   <div className="stat-list">
                     {selectedMetrics.map(metric => {
                       const info = METRICS.find(m => m.id === metric)!
@@ -572,8 +628,26 @@ export default function App() {
           </div>
         )}
 
+        {/* === AIR QUALITY MODE === */}
+        {mode === 'airquality' && aqResults.length > 0 && (
+          <div ref={reportRef}>
+            <AirQuality results={aqResults} />
+          </div>
+        )}
+
+        {/* === CLIMATE 2050 MODE === */}
+        {mode === 'climate2050' && climateProjections.length > 0 && (
+          <div ref={reportRef}>
+            <Climate2050
+              projections={climateProjections}
+              climateTwin={climateTwin}
+              tempUnit={tempUnit}
+            />
+          </div>
+        )}
+
         {/* Export & Share buttons */}
-        {hasResults && (
+        {hasAnyResults && (
           <div className="export-row">
             <button className="btn-export" onClick={exportCSV}>
               Export CSV
