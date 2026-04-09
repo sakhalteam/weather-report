@@ -69,28 +69,27 @@ body {
 /* === Home Button === */
 .home-btn {
   position: fixed;
-  top: 14px;
-  left: 14px;
-  z-index: 100;
-  display: flex;
+  top: 12px;
+  left: 12px;
+  z-index: 50;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 14px;
-  background: var(--panel);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  gap: 6px;
+  padding: 5px 10px 5px 8px;
+  border-radius: 99px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  background: var(--panel);
+  backdrop-filter: blur(6px);
   color: var(--text-muted);
   text-decoration: none;
-  font-size: 12px;
-  font-weight: 600;
-  transition: all 0.2s;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  opacity: 0.55;
+  transition: opacity 0.2s, color 0.2s, border-color 0.2s;
 }
 .home-btn:hover {
+  opacity: 1;
   color: var(--text);
-  background: var(--panel-solid);
-  transform: scale(1.04);
 }
 
 /* === Sound Toggle === */
