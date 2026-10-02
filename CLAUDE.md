@@ -54,3 +54,27 @@ GitHub Actions -> GitHub Pages at `sakhalteam.github.io/weather-report/`
 - `src/Climate2050.tsx` — current vs projected comparison with future twin
 - `src/Timeline.tsx` — animated playback with windowed chart
 - `src/sounds.ts` — procedural Wii-style sound effects
+
+
+## How to end your messages — the "For Nic" block (org-wide rule)
+
+Nic has severe ADHD and loses mid-run asides ("by the way...", "one thing to check
+before you...") and anything buried in closing prose. **This is not a request to be
+less detailed** — keep the full explanation, reasoning and tradeoffs. Just always end
+the turn with a landing pad, as the LAST thing in the message:
+
+```
+---
+**For Nic:**
+1. <verb-first action> — <why, one short clause>
+2. ❓ <decision only Nic can make> — <option A vs option B>
+3. ⏸️ <parked / needs its own session>
+```
+
+- Every "by the way" you had this turn lands here, or assume he never read it.
+- Numbered not bulleted; verb first; max 5, most important first.
+- No recap of what you already did — that's the body's job. This is Nic's list.
+- **Don't force it.** Only what Nic actually needs to notice or act on. It's a TL;DR + call to action, not a test of how many todos you can come up with — one real item (or "Nothing — all clear") beats five padded ones.
+- Nothing for him? Still write it: `**For Nic:** Nothing — all clear.`
+
+Full spec lives in the universal `~/.claude/CLAUDE.md` (and `Code/CLAUDE.md`).
